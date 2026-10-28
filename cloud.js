@@ -7,17 +7,17 @@ window.PortalCloud={
   const f=this.config?.firebase;
   if(!f||!['apiKey','authDomain','databaseURL','projectId','appId'].every(k=>typeof f[k]==='string'&&f[k].trim()))throw Error('Compila firebase-config.js con i valori del nuovo progetto. Segui la guida inclusa.');
   if(!/^https:\/\/[^/]+\.(firebasedatabase\.app|firebaseio\.com)\/?$/.test(f.databaseURL))throw Error('databaseURL deve essere l’indirizzo HTTPS del Realtime Database, senza percorsi aggiuntivi.');
-  if(location.protocol==='file:')throw Error('Questa versione online si apre dal link GitHub Pages. Il doppio clic sul file non consente l’accesso Google.');
+  if(location.protocol==='file:')throw Error('Questa versione online si apre dal link GitHub Pages. Il doppio clic sul file non consente l’accesso al registro.');
   const [app,sdk]=await Promise.all([import('https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js'),import('https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js')]);
   this.sdk=sdk;this.auth=sdk.getAuth(app.initializeApp(f));
   await sdk.setPersistence(this.auth,sdk.browserSessionPersistence);
   sdk.onAuthStateChanged(this.auth,user=>{this.user=user;this.etag=null;this.ready=false;onUser(user)});
  },
- async login(){const provider=new this.sdk.GoogleAuthProvider();provider.setCustomParameters({prompt:'select_account'});await this.sdk.signInWithPopup(this.auth,provider)},
+ async login(password){if(!this.config.loginEmail)throw Error('Inserisci loginEmail in firebase-config.js prima di accedere.');await this.sdk.signInWithEmailAndPassword(this.auth,this.config.loginEmail,password)},
  async logout(){await this.sdk.signOut(this.auth)},
  async request(method,body,etag){
   const user=this.user;
-  if(!user||user.uid!==this.config.ownerUid||!user.emailVerified)throw Error('Account non autorizzato.');
+  if(!user||user.uid!==this.config.ownerUid)throw Error('Account non autorizzato.');
   const token=await user.getIdToken();
   const url=this.config.firebase.databaseURL.replace(/\/$/,'')+'/registri/'+encodeURIComponent(user.uid)+'.json?auth='+encodeURIComponent(token);
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
@@ -38,5 +38,5 @@ window.PortalCloud={
    throw Error('Salvataggio non confermato. Il modulo resta disponibile. Verifica la connessione e aggiorna dal cloud prima di riprovare.');
   }
  },
- friendly(e){return ({'auth/popup-blocked':'Consenti la finestra di accesso Google e riprova.','auth/popup-closed-by-user':'Accesso annullato. Puoi riprovare.','auth/unauthorized-domain':'Aggiungi il dominio GitHub Pages tra i domini autorizzati di Firebase Authentication.'})[e.code]||e.message||'Operazione non riuscita.'}
+ friendly(e){return ({'auth/invalid-credential':'Password non corretta o account non configurato.','auth/wrong-password':'Password non corretta.','auth/user-not-found':'Account non configurato.','auth/too-many-requests':'Troppi tentativi: attendi prima di riprovare.','auth/operation-not-allowed':'Abilita Email/password nella console Firebase.','auth/popup-closed-by-user':'Accesso annullato. Puoi riprovare.','auth/unauthorized-domain':'Aggiungi il dominio GitHub Pages tra i domini autorizzati di Firebase Authentication.'})[e.code]||e.message||'Operazione non riuscita.'}
 };
